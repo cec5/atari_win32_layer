@@ -20,4 +20,4 @@ The immediate next goal is to implement the instruction interceptor to catch sof
 2. Open the project in VS Code (requires C/C++ and CMake Tools extensions).
 3. Select your compiler kit (e.g., GCC/MinGW or MSVC).
 4. Run **CMake: Build** to generate the core and compile the `AtariWin32Layer` executable.
-5. Run the executable located in the `build/` directory.
+5. Run the executable located in the `build/bin` directory.
