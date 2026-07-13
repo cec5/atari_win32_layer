@@ -1,8 +1,8 @@
 # Native Execution of Legacy Atari Applications on Modern Windows
 
 **Course:** COMP4003 MSc Project  
-**Author:** Christopher Cortez
-**Supervisor:** Dr. Steven Bagley
+**Author:** Christopher Cortez  
+**Supervisor:** Dr. Steven Bagley  
 
 ## Project Overview
 This project aims to develop a direct compatibility layer that enables legacy Atari TOS (Motorola 68000) applications to execute natively within a modern Windows environment. By mapping legacy TOS API calls (GEMDOS, BIOS, XBIOS) directly to modern Win32 calls, this software bypasses the isolation and performance bottlenecks of traditional sandboxed emulators, aiming for a seamless, rootless execution experience.
