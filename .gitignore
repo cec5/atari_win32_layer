@@ -53,3 +53,14 @@ dkms.conf
 
 # debug information files
 *.dwo
+
+# Project specific ignores:
+
+# CMake build directory
+build/
+
+# VS Code specific directories and files
+.vscode/.cmaketools/
+.vscode/ipch/
+.vscode/targets.json
+*.log
