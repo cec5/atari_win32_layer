@@ -23,12 +23,15 @@ add_custom_command(
 add_executable(${PROJECT_NAME}
     src/main.c
     src/memory.c
+    src/tos_layer.c
+    src/gemdos.c
     ${MUSASHI_DIR}/m68kcpu.c
     ${MUSASHI_DIR}/m68kdasm.c
     ${MUSASHI_DIR}/softfloat/softfloat.c
     ${GEN_DIR}/m68kops.c
 )
-target_include_directories(${PROJECT_NAME} PRIVATE 
+target_include_directories(${PROJECT_NAME} PRIVATE
     ${MUSASHI_DIR}
     ${GEN_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
 )

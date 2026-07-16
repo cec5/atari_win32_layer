@@ -1,8 +1,13 @@
 #include <stdint.h>
 #include <stdio.h>
+#include <string.h>
+#include "memory.h"
 
-#define MAX_MEM (16 * 1024 * 1024)
 uint8_t virtual_ram[MAX_MEM];
+
+void memory_init(void) {
+    memset(virtual_ram, 0, MAX_MEM);
+}
 
 // Double checks boundary
 static inline int check_bounds(unsigned int address) {
