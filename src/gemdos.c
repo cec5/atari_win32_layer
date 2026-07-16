@@ -1,4 +1,6 @@
 #include <stdio.h>
+#include <stdlib.h>
+#include <windows.h>
 #include "m68k.h"
 #include "gemdos.h"
 #include "tos_layer.h"
@@ -6,20 +8,33 @@
 #define GEMDOS_PTERM0 0x00
 #define GEMDOS_CCONWS 0x09
 #define GEMDOS_PTERM  0x4C
+#define CCONWS_MAX_LEN (1u * 1024u * 1024u)
 
-/* Cconws(char *str) - write a NUL-terminated string to the console. */
 static unsigned int gemdos_cconws(unsigned int args_addr) {
     unsigned int str_addr = m68k_read_memory_32(args_addr);
 
-    for (unsigned int i = str_addr; ; i++) {
-        unsigned char c = (unsigned char)m68k_read_memory_8(i);
-        if (c == 0) {
-            break;
-        }
-        putchar(c);
+    unsigned int len = 0;
+    while (len < CCONWS_MAX_LEN && m68k_read_memory_8(str_addr + len) != 0) {
+        len++;
     }
+
+    char *buffer = malloc(len);
+    if (!buffer) {
+        return 0;
+    }
+    for (unsigned int i = 0; i < len; i++) {
+        buffer[i] = (char)m68k_read_memory_8(str_addr + i);
+    }
+
     fflush(stdout);
 
+    HANDLE stdout_handle = GetStdHandle(STD_OUTPUT_HANDLE);
+    DWORD written;
+    if (!WriteConsoleA(stdout_handle, buffer, len, &written, NULL)) {
+        WriteFile(stdout_handle, buffer, len, &written, NULL);
+    }
+
+    free(buffer);
     return 0;
 }
 

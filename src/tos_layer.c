@@ -42,6 +42,7 @@ static void handle_gemdos_trap(void) {
     m68k_set_reg(M68K_REG_D0, result);
 }
 
+// I'm not touching BIOS yet
 static void handle_unimplemented_trap(const char *name, unsigned int pc) {
     printf("[tos_layer] Unimplemented %s trap hit at PC 0x%08X\n", name, pc);
     pop_exception_frame();

@@ -5,8 +5,7 @@
  * Dispatches a GEMDOS (TRAP #1) call.
  *
  * func_num  - the GEMDOS function number, as pushed by the caller.
- * args_addr - address of the first parameter on the stack, immediately
- *             following the function number word.
+ * args_addr - address of the first parameter on the stack, immediately following the function number word.
  *
  * Returns the value the caller expects back in D0.L.
  */
