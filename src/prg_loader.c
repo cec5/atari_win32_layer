@@ -38,15 +38,6 @@ static int parse_header(const unsigned char *buf, size_t size, PrgHeader *hdr) {
 
     return 1;
 }
-
-/*
- * GEMDOS relocation table: a 32-bit offset (from the start of TEXT) to the
- * first longword needing a fixup, followed by a chain of bytes giving the
- * delta to the next fixup (0 = end, 1 = add 254 and keep reading without a
- * fixup, since a byte can't express deltas bigger than that). Each fixed
- * up longword gets load_base added to whatever the compiler/linker baked
- * in assuming the image started at address 0.
- */
 static void apply_relocations(const unsigned char *reloc, size_t reloc_size, unsigned int load_base) {
     if (reloc_size < 4) {
         return;

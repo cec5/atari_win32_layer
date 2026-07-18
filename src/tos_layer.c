@@ -5,8 +5,6 @@
 
 static int s_halt_requested = 0;
 
-/* Exception vector number for TRAP #n is 32 + n; its slot in the vector
- * table (based at VBR, which is left at 0) is (32 + n) * 4. */
 #define TRAP_VECTOR_ADDR(n) ((32u + (n)) * 4u)
 
 static void install_trap_vector(unsigned int trap_num, unsigned int handler_addr) {
@@ -30,8 +28,6 @@ static unsigned int pop_exception_frame(void) {
 }
 
 static void handle_gemdos_trap(void) {
-    /* The caller's own pushed args (function number, then parameters)
-     * sit just past the 6-byte exception frame Musashi pushed for us. */
     unsigned int sp = m68k_get_reg(NULL, M68K_REG_SP);
     unsigned int func_num = m68k_read_memory_16(sp + 6);
     unsigned int args_addr = sp + 6 + 2;
@@ -57,7 +53,6 @@ static void trap_instr_hook(unsigned int pc) {
     } else if (pc == XBIOS_TRAP_ADDR) {
         handle_unimplemented_trap("XBIOS", pc);
     }
-
     if (s_halt_requested) {
         m68k_end_timeslice();
     }

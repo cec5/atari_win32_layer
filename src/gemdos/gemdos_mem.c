@@ -6,12 +6,7 @@
 
 #define ERR_INVALID_ADDR -36
 
-/*
- * A first-fit free-list allocator over the pool. Bookkeeping nodes live
- * in host memory (plain malloc/free) - only addr/size describe guest
- * (virtual_ram) space. This lets Mfree/Mshrink actually reclaim and reuse
- * memory, unlike a bump allocator.
- */
+// First-fit free-list allocator over the pool
 typedef struct MemBlock {
     unsigned int addr;
     unsigned int size;
