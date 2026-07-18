@@ -1,0 +1,233 @@
+#include <stdlib.h>
+#include <stdio.h>
+#include <windows.h>
+#include "m68k.h"
+#include "gemdos/gemdos_file.h"
+#include "guest_mem_util.h"
+
+/* Real GEMDOS error codes, reused here for the same meanings. */
+#define EFILNF -33 // file not found
+#define ENHNDL -35 // no more handles available
+#define EIHNDL -36 // invalid handle
+
+#define MAX_HANDLES 64
+#define MAX_PATH_LEN 1024
+
+typedef struct {
+    HANDLE win_handle;
+    int in_use;
+} FileHandle;
+
+static FileHandle s_handles[MAX_HANDLES];
+
+void gemdos_file_init(void) {
+    for (int i = 0; i < MAX_HANDLES; i++) {
+        s_handles[i].win_handle = INVALID_HANDLE_VALUE;
+        s_handles[i].in_use = 0;
+    }
+
+    s_handles[0].win_handle = GetStdHandle(STD_INPUT_HANDLE);
+    s_handles[0].in_use = 1;
+    s_handles[1].win_handle = GetStdHandle(STD_OUTPUT_HANDLE);
+    s_handles[1].in_use = 1;
+    s_handles[2].win_handle = GetStdHandle(STD_ERROR_HANDLE);
+    s_handles[2].in_use = 1;
+}
+
+static int32_t alloc_handle(HANDLE win_handle) {
+    for (int i = 3; i < MAX_HANDLES; i++) {
+        if (!s_handles[i].in_use) {
+            s_handles[i].win_handle = win_handle;
+            s_handles[i].in_use = 1;
+            return i;
+        }
+    }
+    return ENHNDL;
+}
+
+static int handle_valid(int16_t handle) {
+    return handle >= 0 && handle < MAX_HANDLES && s_handles[handle].in_use;
+}
+
+int32_t gemdos_file_open(const char *path, int16_t mode) {
+    DWORD access = GENERIC_READ;
+    if (mode == 1) {
+        access = GENERIC_WRITE;
+    } else if (mode == 2) {
+        access = GENERIC_READ | GENERIC_WRITE;
+    }
+
+    HANDLE h = CreateFileA(path, access, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (h == INVALID_HANDLE_VALUE) {
+        return EFILNF;
+    }
+
+    int32_t handle = alloc_handle(h);
+    if (handle < 0) {
+        CloseHandle(h);
+    }
+    return handle;
+}
+
+int32_t gemdos_file_create(const char *path, int16_t attrib) {
+    (void)attrib; // DOS-style attribute bits aren't modeled on the host
+
+    HANDLE h = CreateFileA(path, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (h == INVALID_HANDLE_VALUE) {
+        return EFILNF;
+    }
+
+    int32_t handle = alloc_handle(h);
+    if (handle < 0) {
+        CloseHandle(h);
+    }
+    return handle;
+}
+
+int32_t gemdos_file_close(int16_t handle) {
+    if (!handle_valid(handle)) {
+        return EIHNDL;
+    }
+
+    if (handle > 2) {
+        CloseHandle(s_handles[handle].win_handle);
+    }
+    s_handles[handle].in_use = 0;
+    s_handles[handle].win_handle = INVALID_HANDLE_VALUE;
+    return 0;
+}
+
+int32_t gemdos_file_read(int16_t handle, unsigned char *buf, uint32_t count) {
+    if (!handle_valid(handle)) {
+        return EIHNDL;
+    }
+
+    DWORD read_count = 0;
+    if (!ReadFile(s_handles[handle].win_handle, buf, count, &read_count, NULL)) {
+        return EIHNDL;
+    }
+    return (int32_t)read_count;
+}
+
+int32_t gemdos_file_write(int16_t handle, const unsigned char *buf, uint32_t count) {
+    if (!handle_valid(handle)) {
+        return EIHNDL;
+    }
+
+    DWORD written = 0;
+    if (handle == 1 || handle == 2) {
+        if (WriteConsoleA(s_handles[handle].win_handle, buf, count, &written, NULL)) {
+            return (int32_t)written;
+        }
+        /* Not a real console (redirected to a file/pipe) - fall through
+         * to WriteFile below, same as Cconws does. */
+    }
+
+    if (!WriteFile(s_handles[handle].win_handle, buf, count, &written, NULL)) {
+        return EIHNDL;
+    }
+    return (int32_t)written;
+}
+
+int32_t gemdos_file_seek(int16_t handle, int32_t offset, int16_t mode) {
+    if (!handle_valid(handle)) {
+        return EIHNDL;
+    }
+
+    DWORD method = FILE_BEGIN;
+    if (mode == 1) {
+        method = FILE_CURRENT;
+    } else if (mode == 2) {
+        method = FILE_END;
+    }
+
+    DWORD new_pos = SetFilePointer(s_handles[handle].win_handle, offset, NULL, method);
+    if (new_pos == INVALID_SET_FILE_POINTER) {
+        return EIHNDL;
+    }
+    return (int32_t)new_pos;
+}
+
+/* GEMDOS trap handlers */
+
+// Fcreate(BYTE *fname, WORD attr)
+unsigned int gemdos_fcreate(unsigned int args_addr) {
+    unsigned int fname_addr = m68k_read_memory_32(args_addr);
+    int16_t attrib = (int16_t)m68k_read_memory_16(args_addr + 4);
+
+    char path[MAX_PATH_LEN];
+    guest_read_cstring(fname_addr, path, sizeof(path));
+
+    return (unsigned int)gemdos_file_create(path, attrib);
+}
+
+// Fopen(BYTE *fname, WORD mode)
+unsigned int gemdos_fopen(unsigned int args_addr) {
+    unsigned int fname_addr = m68k_read_memory_32(args_addr);
+    int16_t mode = (int16_t)m68k_read_memory_16(args_addr + 4);
+
+    char path[MAX_PATH_LEN];
+    guest_read_cstring(fname_addr, path, sizeof(path));
+
+    return (unsigned int)gemdos_file_open(path, mode);
+}
+
+// Fclose(WORD handle)
+unsigned int gemdos_fclose(unsigned int args_addr) {
+    int16_t handle = (int16_t)m68k_read_memory_16(args_addr);
+    return (unsigned int)gemdos_file_close(handle);
+}
+
+// Fread(WORD handle, LONG count, VOID *buf)
+unsigned int gemdos_fread(unsigned int args_addr) {
+    int16_t handle = (int16_t)m68k_read_memory_16(args_addr);
+    uint32_t count = m68k_read_memory_32(args_addr + 2);
+    unsigned int buf_addr = m68k_read_memory_32(args_addr + 6);
+
+    unsigned char *buf = malloc(count);
+    if (!buf) {
+        return 0;
+    }
+
+    int32_t got = gemdos_file_read(handle, buf, count);
+    if (got > 0) {
+        for (int32_t i = 0; i < got; i++) {
+            m68k_write_memory_8(buf_addr + i, buf[i]);
+        }
+    }
+
+    free(buf);
+    return (unsigned int)got;
+}
+
+// Fwrite(WORD handle, LONG count, VOID *buf)
+unsigned int gemdos_fwrite(unsigned int args_addr) {
+    int16_t handle = (int16_t)m68k_read_memory_16(args_addr);
+    uint32_t count = m68k_read_memory_32(args_addr + 2);
+    unsigned int buf_addr = m68k_read_memory_32(args_addr + 6);
+
+    unsigned char *buf = malloc(count);
+    if (!buf) {
+        return 0;
+    }
+    for (uint32_t i = 0; i < count; i++) {
+        buf[i] = (unsigned char)m68k_read_memory_8(buf_addr + i);
+    }
+
+    if (handle == 1 || handle == 2) {
+        fflush(stdout);
+    }
+    int32_t written = gemdos_file_write(handle, buf, count);
+
+    free(buf);
+    return (unsigned int)written;
+}
+
+// Fseek(LONG offset, WORD handle, WORD seekmode)
+unsigned int gemdos_fseek(unsigned int args_addr) {
+    int32_t offset = (int32_t)m68k_read_memory_32(args_addr);
+    int16_t handle = (int16_t)m68k_read_memory_16(args_addr + 4);
+    int16_t mode = (int16_t)m68k_read_memory_16(args_addr + 6);
+
+    return (unsigned int)gemdos_file_seek(handle, offset, mode);
+}

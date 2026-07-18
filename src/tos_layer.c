@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include "m68k.h"
 #include "tos_layer.h"
-#include "gemdos.h"
+#include "gemdos/gemdos.h"
 
 static int s_halt_requested = 0;
 

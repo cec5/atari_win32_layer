@@ -24,8 +24,12 @@ add_executable(${PROJECT_NAME}
     src/main.c
     src/memory.c
     src/tos_layer.c
-    src/gemdos.c
+    src/gemdos/gemdos.c
+    src/gemdos/gemdos_console.c
+    src/gemdos/gemdos_mem.c
+    src/gemdos/gemdos_file.c
     src/prg_loader.c
+    src/guest_mem_util.c
     ${MUSASHI_DIR}/m68kcpu.c
     ${MUSASHI_DIR}/m68kdasm.c
     ${MUSASHI_DIR}/softfloat/softfloat.c

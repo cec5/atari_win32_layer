@@ -5,6 +5,8 @@
 #include "memory.h"
 #include "tos_layer.h"
 #include "prg_loader.h"
+#include "gemdos/gemdos_mem.h"
+#include "gemdos/gemdos_file.h"
 
 #define LOAD_ADDR 0x00001000u
 
@@ -34,6 +36,7 @@ int main(int argc, char *argv[]) {
     m68k_init();
     m68k_set_cpu_type(M68K_CPU_TYPE_68000);
     tos_layer_init();
+    gemdos_file_init();
 
     char default_path[MAX_PATH];
     get_default_prg_path(default_path, sizeof(default_path));
@@ -45,6 +48,8 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "Usage: %s <path-to-.prg>\n", argv[0]);
         return 1;
     }
+
+    gemdos_mem_init(prg.stack_addr, MAX_MEM);
 
     m68k_write_memory_32(0x00000000u, prg.stack_addr);
     m68k_write_memory_32(0x00000004u, prg.entry_addr);
