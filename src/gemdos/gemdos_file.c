@@ -57,8 +57,10 @@ int32_t gemdos_file_open(const char *path, int16_t mode) {
         access = GENERIC_READ | GENERIC_WRITE;
     }
 
-    HANDLE h = CreateFileA(path, access, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    HANDLE h = CreateFileA(path, access, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
     if (h == INVALID_HANDLE_VALUE) {
+        fprintf(stderr, "[gemdos_file] Fopen('%s', mode=%d) failed, GetLastError=%lu\n",
+                path, mode, (unsigned long)GetLastError());
         return EFILNF;
     }
 
@@ -72,7 +74,7 @@ int32_t gemdos_file_open(const char *path, int16_t mode) {
 int32_t gemdos_file_create(const char *path, int16_t attrib) {
     (void)attrib; // DOS-style attribute bits aren't modeled on the host
 
-    HANDLE h = CreateFileA(path, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    HANDLE h = CreateFileA(path, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
     if (h == INVALID_HANDLE_VALUE) {
         return EFILNF;
     }
@@ -119,8 +121,6 @@ int32_t gemdos_file_write(int16_t handle, const unsigned char *buf, uint32_t cou
         if (WriteConsoleA(s_handles[handle].win_handle, buf, count, &written, NULL)) {
             return (int32_t)written;
         }
-        /* Not a real console (redirected to a file/pipe) - fall through
-         * to WriteFile below, same as Cconws does. */
     }
 
     if (!WriteFile(s_handles[handle].win_handle, buf, count, &written, NULL)) {

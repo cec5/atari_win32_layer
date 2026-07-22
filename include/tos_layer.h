@@ -17,4 +17,10 @@ void tos_layer_init(void);
 
 void tos_request_halt(void);
 
+/* True once Pterm/Pterm0 has requested a halt. Lets main() run in chunks
+ * until the guest program actually terminates itself, instead of
+ * guessing a fixed cycle budget upfront.
+ */
+int tos_is_halted(void);
+
 #endif

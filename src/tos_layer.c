@@ -69,3 +69,7 @@ void tos_layer_init(void) {
 void tos_request_halt(void) {
     s_halt_requested = 1;
 }
+
+int tos_is_halted(void) {
+    return s_halt_requested;
+}
