@@ -63,7 +63,10 @@ build/
 .vscode/.cmaketools/
 .vscode/ipch/
 
-# Files created by running test_programs/file_io_test.tos
+# Generated dummy files (test)
 /TEST.TXT
 .vscode/targets.json
+
+# Debug-mode log output (--debug flag)
+/logs/
 *.log

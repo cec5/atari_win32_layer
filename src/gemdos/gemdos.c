@@ -4,11 +4,13 @@
 #include "gemdos/gemdos_file.h"
 #include "gemdos/gemdos_mem.h"
 #include "tos_layer.h"
+#include "logger.h"
 
 /*
  * This file only routes a GEMDOS function number to its handler. The
- * handlers themselves, argument marshalling and the actual work, live
- * in the category file for that call (gemdos_console.c, gemdos_file.c, gemdos_mem.c, ...)
+ * handlers themselves - argument marshalling and the actual work - live
+ * in the category file for that call (gemdos_console.c, gemdos_file.c,
+ * gemdos_mem.c, ...).
  */
 #define GEMDOS_PTERM0  0x00
 #define GEMDOS_CCONWS  0x09
@@ -24,49 +26,89 @@
 #define GEMDOS_PTERM   0x4C
 #define GEMDOS_FCNTL   0x104
 
+static const char *gemdos_function_name(unsigned int func_num) {
+    switch (func_num) {
+        case GEMDOS_PTERM0:  return "Pterm0";
+        case GEMDOS_CCONWS:  return "Cconws";
+        case GEMDOS_FCREATE: return "Fcreate";
+        case GEMDOS_FOPEN:   return "Fopen";
+        case GEMDOS_FCLOSE:  return "Fclose";
+        case GEMDOS_FREAD:   return "Fread";
+        case GEMDOS_FWRITE:  return "Fwrite";
+        case GEMDOS_FSEEK:   return "Fseek";
+        case GEMDOS_MALLOC:  return "Malloc";
+        case GEMDOS_MFREE:   return "Mfree";
+        case GEMDOS_MSHRINK: return "Mshrink";
+        case GEMDOS_PTERM:   return "Pterm";
+        case GEMDOS_FCNTL:   return "Fcntl";
+        default:             return "Unknown";
+    }
+}
+
 unsigned int gemdos_dispatch(unsigned int func_num, unsigned int args_addr) {
+    log_write(LOG_API, "GEMDOS %s (0x%02X) called", gemdos_function_name(func_num), func_num);
+
+    unsigned int result = 0;
+
     switch (func_num) {
         case GEMDOS_CCONWS:
-            return gemdos_cconws(args_addr);
+            result = gemdos_cconws(args_addr);
+            break;
 
         case GEMDOS_FCREATE:
-            return gemdos_fcreate(args_addr);
+            result = gemdos_fcreate(args_addr);
+            break;
 
         case GEMDOS_FOPEN:
-            return gemdos_fopen(args_addr);
+            result = gemdos_fopen(args_addr);
+            break;
 
         case GEMDOS_FCLOSE:
-            return gemdos_fclose(args_addr);
+            result = gemdos_fclose(args_addr);
+            break;
 
         case GEMDOS_FREAD:
-            return gemdos_fread(args_addr);
+            result = gemdos_fread(args_addr);
+            break;
 
         case GEMDOS_FWRITE:
-            return gemdos_fwrite(args_addr);
+            result = gemdos_fwrite(args_addr);
+            break;
 
         case GEMDOS_FSEEK:
-            return gemdos_fseek(args_addr);
+            result = gemdos_fseek(args_addr);
+            break;
 
         case GEMDOS_MALLOC:
-            return gemdos_malloc(args_addr);
+            result = gemdos_malloc(args_addr);
+            break;
 
         case GEMDOS_MFREE:
-            return gemdos_mfree(args_addr);
+            result = gemdos_mfree(args_addr);
+            break;
 
         case GEMDOS_MSHRINK:
-            return gemdos_mshrink(args_addr);
+            result = gemdos_mshrink(args_addr);
+            break;
 
         case GEMDOS_PTERM0:
         case GEMDOS_PTERM:
             tos_request_halt();
-            return 0;
+            break;
 
         case GEMDOS_FCNTL:
-            // We are not (currently) modeling MiNT Exentsions for file-descriptor control (flags, isatty, probes, etc.); reporting success let's the startup continue
-            return 0;
+            // MiNT extension for file-descriptor control (flags, isatty
+            // probes, etc.) - not modeled; reporting success lets the
+            // program's startup continue rather than treating it as fatal.
+            break;
 
         default:
             printf("[gemdos] Unimplemented GEMDOS function 0x%02X\n", func_num);
-            return 0;
+            log_write(LOG_ERROR, "GEMDOS function 0x%02X is unimplemented", func_num);
+            break;
     }
+
+    log_write(LOG_API, "GEMDOS %s (0x%02X) returned D0=0x%08X", gemdos_function_name(func_num), func_num, result);
+
+    return result;
 }

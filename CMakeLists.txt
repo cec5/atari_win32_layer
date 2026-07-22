@@ -30,6 +30,8 @@ add_executable(${PROJECT_NAME}
     src/gemdos/gemdos_file.c
     src/prg_loader.c
     src/guest_mem_util.c
+    src/logger.c
+    src/host_paths.c
     ${MUSASHI_DIR}/m68kcpu.c
     ${MUSASHI_DIR}/m68kdasm.c
     ${MUSASHI_DIR}/softfloat/softfloat.c

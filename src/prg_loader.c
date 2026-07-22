@@ -38,6 +38,12 @@ static int parse_header(const unsigned char *buf, size_t size, PrgHeader *hdr) {
 
     return 1;
 }
+/* The relocation table is a 32-bit offset (from the start of TEXT) to the
+ * first longword needing a fixup, followed by a byte chain giving the
+ * delta to the next fixup: 0 ends the chain, 1 adds 254 and keeps reading
+ * (a single byte can't express deltas bigger than that). Each fixed-up
+ * longword gets load_base added to whatever the compiler assumed was a
+ * zero-based image. */
 static void apply_relocations(const unsigned char *reloc, size_t reloc_size, unsigned int load_base) {
     if (reloc_size < 4) {
         return;
@@ -76,19 +82,19 @@ static void apply_relocations(const unsigned char *reloc, size_t reloc_size, uns
 }
 
 static void write_basepage(unsigned int basepage_addr, unsigned int text_addr, unsigned int data_addr, unsigned int bss_addr, unsigned int stack_top, const PrgHeader *hdr) {
-    m68k_write_memory_32(basepage_addr + 0x00, basepage_addr);        /* p_lowtpa */
-    m68k_write_memory_32(basepage_addr + 0x04, stack_top);            /* p_hitpa */
-    m68k_write_memory_32(basepage_addr + 0x08, text_addr);            /* p_tbase */
-    m68k_write_memory_32(basepage_addr + 0x0C, hdr->tlen);            /* p_tlen */
-    m68k_write_memory_32(basepage_addr + 0x10, data_addr);            /* p_dbase */
-    m68k_write_memory_32(basepage_addr + 0x14, hdr->dlen);            /* p_dlen */
-    m68k_write_memory_32(basepage_addr + 0x18, bss_addr);             /* p_bbase */
-    m68k_write_memory_32(basepage_addr + 0x1C, hdr->blen);            /* p_blen */
-    m68k_write_memory_32(basepage_addr + 0x20, basepage_addr + 0x80); /* p_dta */
-    m68k_write_memory_32(basepage_addr + 0x24, 0);                    /* p_parent */
-    m68k_write_memory_32(basepage_addr + 0x28, 0);                    /* p_flags */
-    m68k_write_memory_32(basepage_addr + 0x2C, 0);                    /* p_env */
-    m68k_write_memory_8(basepage_addr + 0x80, 0);                     /* empty command line */
+    m68k_write_memory_32(basepage_addr + 0x00, basepage_addr);        // p_lowtpa
+    m68k_write_memory_32(basepage_addr + 0x04, stack_top);            // p_hitpa
+    m68k_write_memory_32(basepage_addr + 0x08, text_addr);            // p_tbase
+    m68k_write_memory_32(basepage_addr + 0x0C, hdr->tlen);            // p_tlen
+    m68k_write_memory_32(basepage_addr + 0x10, data_addr);            // p_dbase
+    m68k_write_memory_32(basepage_addr + 0x14, hdr->dlen);            // p_dlen
+    m68k_write_memory_32(basepage_addr + 0x18, bss_addr);             // p_bbase
+    m68k_write_memory_32(basepage_addr + 0x1C, hdr->blen);            // p_blen
+    m68k_write_memory_32(basepage_addr + 0x20, basepage_addr + 0x80); // p_dta
+    m68k_write_memory_32(basepage_addr + 0x24, 0);                    // p_parent
+    m68k_write_memory_32(basepage_addr + 0x28, 0);                    // p_flags
+    m68k_write_memory_32(basepage_addr + 0x2C, 0);                    // p_env
+    m68k_write_memory_8(basepage_addr + 0x80, 0);                     // empty command line
 }
 
 int prg_load(const char *host_path, unsigned int load_addr, PrgLoadResult *result) {
@@ -166,6 +172,13 @@ int prg_load(const char *host_path, unsigned int load_addr, PrgLoadResult *resul
     result->basepage_addr = basepage_addr;
     result->entry_addr = text_addr;
     result->stack_addr = stack_top;
+
+    result->text_addr = text_addr;
+    result->text_len = hdr.tlen;
+    result->data_addr = data_addr;
+    result->data_len = hdr.dlen;
+    result->bss_addr = bss_addr;
+    result->bss_len = hdr.blen;
 
     printf("[prg_loader] Loaded '%s': TEXT=0x%08X(%u) DATA=0x%08X(%u) BSS=0x%08X(%u) entry=0x%08X\n",
            host_path, text_addr, hdr.tlen, data_addr, hdr.dlen, bss_addr, hdr.blen, text_addr);

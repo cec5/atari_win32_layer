@@ -4,8 +4,9 @@
 #include "m68k.h"
 #include "gemdos/gemdos_file.h"
 #include "guest_mem_util.h"
+#include "logger.h"
 
-/* Real GEMDOS error codes, reused here for the same meanings. */
+// Real GEMDOS error codes, reused here for the same meanings.
 #define EFILNF -33 // file not found
 #define ENHNDL -35 // no more handles available
 #define EIHNDL -36 // invalid handle
@@ -59,14 +60,20 @@ int32_t gemdos_file_open(const char *path, int16_t mode) {
 
     HANDLE h = CreateFileA(path, access, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
     if (h == INVALID_HANDLE_VALUE) {
+        DWORD err = GetLastError();
         fprintf(stderr, "[gemdos_file] Fopen('%s', mode=%d) failed, GetLastError=%lu\n",
-                path, mode, (unsigned long)GetLastError());
+                path, mode, (unsigned long)err);
+        log_write(LOG_ERROR, "Fopen('%s', mode=%d) -> CreateFileA(OPEN_EXISTING) failed, GetLastError=%lu",
+                  path, mode, (unsigned long)err);
         return EFILNF;
     }
 
     int32_t handle = alloc_handle(h);
     if (handle < 0) {
         CloseHandle(h);
+        log_write(LOG_ERROR, "Fopen('%s') opened but the handle table is full", path);
+    } else {
+        log_write(LOG_API, "Fopen('%s', mode=%d) -> CreateFileA(OPEN_EXISTING) -> handle=%d", path, mode, handle);
     }
     return handle;
 }
@@ -76,18 +83,24 @@ int32_t gemdos_file_create(const char *path, int16_t attrib) {
 
     HANDLE h = CreateFileA(path, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
     if (h == INVALID_HANDLE_VALUE) {
+        log_write(LOG_ERROR, "Fcreate('%s') -> CreateFileA(CREATE_ALWAYS) failed, GetLastError=%lu",
+                  path, (unsigned long)GetLastError());
         return EFILNF;
     }
 
     int32_t handle = alloc_handle(h);
     if (handle < 0) {
         CloseHandle(h);
+        log_write(LOG_ERROR, "Fcreate('%s') created but the handle table is full", path);
+    } else {
+        log_write(LOG_API, "Fcreate('%s') -> CreateFileA(CREATE_ALWAYS) -> handle=%d", path, handle);
     }
     return handle;
 }
 
 int32_t gemdos_file_close(int16_t handle) {
     if (!handle_valid(handle)) {
+        log_write(LOG_ERROR, "Fclose(handle=%d) -> invalid handle", handle);
         return EIHNDL;
     }
 
@@ -96,41 +109,53 @@ int32_t gemdos_file_close(int16_t handle) {
     }
     s_handles[handle].in_use = 0;
     s_handles[handle].win_handle = INVALID_HANDLE_VALUE;
+    log_write(LOG_API, "Fclose(handle=%d) -> CloseHandle", handle);
     return 0;
 }
 
 int32_t gemdos_file_read(int16_t handle, unsigned char *buf, uint32_t count) {
     if (!handle_valid(handle)) {
+        log_write(LOG_ERROR, "Fread(handle=%d) -> invalid handle", handle);
         return EIHNDL;
     }
 
     DWORD read_count = 0;
     if (!ReadFile(s_handles[handle].win_handle, buf, count, &read_count, NULL)) {
+        log_write(LOG_ERROR, "Fread(handle=%d, count=%u) -> ReadFile failed, GetLastError=%lu",
+                  handle, count, (unsigned long)GetLastError());
         return EIHNDL;
     }
+    log_write(LOG_API, "Fread(handle=%d, count=%u) -> ReadFile -> read=%lu", handle, count, (unsigned long)read_count);
     return (int32_t)read_count;
 }
 
 int32_t gemdos_file_write(int16_t handle, const unsigned char *buf, uint32_t count) {
     if (!handle_valid(handle)) {
+        log_write(LOG_ERROR, "Fwrite(handle=%d) -> invalid handle", handle);
         return EIHNDL;
     }
 
     DWORD written = 0;
     if (handle == 1 || handle == 2) {
         if (WriteConsoleA(s_handles[handle].win_handle, buf, count, &written, NULL)) {
+            log_write(LOG_API, "Fwrite(handle=%d, count=%u) -> WriteConsoleA -> wrote=%lu",
+                      handle, count, (unsigned long)written);
             return (int32_t)written;
         }
     }
 
     if (!WriteFile(s_handles[handle].win_handle, buf, count, &written, NULL)) {
+        log_write(LOG_ERROR, "Fwrite(handle=%d, count=%u) -> WriteFile failed, GetLastError=%lu",
+                  handle, count, (unsigned long)GetLastError());
         return EIHNDL;
     }
+    log_write(LOG_API, "Fwrite(handle=%d, count=%u) -> WriteFile -> wrote=%lu", handle, count, (unsigned long)written);
     return (int32_t)written;
 }
 
 int32_t gemdos_file_seek(int16_t handle, int32_t offset, int16_t mode) {
     if (!handle_valid(handle)) {
+        log_write(LOG_ERROR, "Fseek(handle=%d) -> invalid handle", handle);
         return EIHNDL;
     }
 
@@ -143,12 +168,16 @@ int32_t gemdos_file_seek(int16_t handle, int32_t offset, int16_t mode) {
 
     DWORD new_pos = SetFilePointer(s_handles[handle].win_handle, offset, NULL, method);
     if (new_pos == INVALID_SET_FILE_POINTER) {
+        log_write(LOG_ERROR, "Fseek(handle=%d, offset=%d, mode=%d) -> SetFilePointer failed, GetLastError=%lu",
+                  handle, offset, mode, (unsigned long)GetLastError());
         return EIHNDL;
     }
+    log_write(LOG_API, "Fseek(handle=%d, offset=%d, mode=%d) -> SetFilePointer -> pos=%lu",
+              handle, offset, mode, (unsigned long)new_pos);
     return (int32_t)new_pos;
 }
 
-/* GEMDOS trap handlers */
+// GEMDOS trap handlers
 
 // Fcreate(BYTE *fname, WORD attr)
 unsigned int gemdos_fcreate(unsigned int args_addr) {

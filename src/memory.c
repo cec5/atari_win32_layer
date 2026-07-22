@@ -9,7 +9,6 @@ void memory_init(void) {
     memset(virtual_ram, 0, MAX_MEM);
 }
 
-// Double checks boundary
 static inline int check_bounds(unsigned int address) {
     if (address >= MAX_MEM) {
         printf("Out of bounds memory access at 0x%08X\n", address);
@@ -57,8 +56,8 @@ void m68k_write_memory_32(unsigned int address, unsigned int value) {
     virtual_ram[address + 3] = value & 0xFF;
 }
 
-// (BANDAID-FIX) DISSEMBLER CALLBACKS (Fine for now, but needs to be properly written)
-
+// Disassembler reads just alias the normal read path for now, which is
+// fine since nothing here has read side effects to worry about.
 unsigned int m68k_read_disassembler_8(unsigned int address) {
     return m68k_read_memory_8(address);
 }

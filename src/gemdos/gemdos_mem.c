@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include "m68k.h"
 #include "gemdos/gemdos_mem.h"
+#include "logger.h"
 
 #define ALIGN_UP(n, a) (((n) + (a) - 1) & ~((unsigned int)(a) - 1))
 
@@ -44,7 +45,8 @@ static unsigned int largest_free_block(void) {
     return largest;
 }
 
-// Splits off a new free block covering the tail of b (from 'used' bytes in to the end of b) and inserts it right after b in the list
+// Splits off a new free block covering the tail of b (from 'used' bytes
+// in to the end of b) and inserts it right after b in the list.
 static void split_tail(MemBlock *b, unsigned int used) {
     if (used >= b->size) {
         return;
@@ -60,7 +62,8 @@ static void split_tail(MemBlock *b, unsigned int used) {
     b->next = remainder;
 }
 
-// Merges b with however many immediately-following free blocks are themselves free, so adjacent free space never stays fragmented
+// Merges b with however many immediately-following free blocks are
+// themselves free, so adjacent free space never stays fragmented.
 static void coalesce_forward(MemBlock *b) {
     while (b && b->is_free && b->next && b->next->is_free) {
         MemBlock *victim = b->next;
@@ -72,9 +75,12 @@ static void coalesce_forward(MemBlock *b) {
 
 unsigned int gemdos_mem_malloc(int32_t size) {
     if (size == -1) {
-        return largest_free_block();
+        unsigned int largest = largest_free_block();
+        log_write(LOG_API, "Malloc(-1) -> largest free block=%u bytes", largest);
+        return largest;
     }
     if (size <= 0) {
+        log_write(LOG_ERROR, "Malloc(%d) -> invalid size", size);
         return 0;
     }
 
@@ -87,9 +93,11 @@ unsigned int gemdos_mem_malloc(int32_t size) {
 
         split_tail(b, want);
         b->is_free = 0;
+        log_write(LOG_API, "Malloc(%d) -> addr=0x%08X (%u bytes reserved)", size, b->addr, want);
         return b->addr;
     }
 
+    log_write(LOG_ERROR, "Malloc(%d) -> no free block large enough", size);
     return 0;
 }
 
@@ -111,6 +119,7 @@ int32_t gemdos_mem_free(unsigned int addr) {
     MemBlock *prev = NULL;
     MemBlock *b = find_block(addr, &prev);
     if (!b || b->is_free) {
+        log_write(LOG_ERROR, "Mfree(0x%08X) -> not a live allocation", addr);
         return ERR_INVALID_ADDR;
     }
 
@@ -120,27 +129,31 @@ int32_t gemdos_mem_free(unsigned int addr) {
         coalesce_forward(prev);
     }
 
+    log_write(LOG_API, "Mfree(0x%08X) -> freed", addr);
     return 0;
 }
 
 int32_t gemdos_mem_shrink(unsigned int addr, uint32_t newsize) {
     MemBlock *b = find_block(addr, NULL);
     if (!b || b->is_free) {
+        log_write(LOG_ERROR, "Mshrink(0x%08X, %u) -> not a live allocation", addr, newsize);
         return ERR_INVALID_ADDR;
     }
 
     unsigned int want = ALIGN_UP(newsize, 4);
     if (want >= b->size) {
+        log_write(LOG_API, "Mshrink(0x%08X, %u) -> no-op (nothing to shrink)", addr, newsize);
         return 0;
     }
 
     split_tail(b, want);
     coalesce_forward(b->next);
 
+    log_write(LOG_API, "Mshrink(0x%08X, %u) -> shrunk to %u bytes", addr, newsize, want);
     return 0;
 }
 
-/* GEMDOS trap handlers */
+// GEMDOS trap handlers
 
 // Malloc(LONG number)
 unsigned int gemdos_malloc(unsigned int args_addr) {

@@ -3,6 +3,7 @@
 #include "m68k.h"
 #include "gemdos/gemdos_console.h"
 #include "gemdos/gemdos_file.h"
+#include "logger.h"
 
 #define STRING_MAX_LEN (1u * 1024u * 1024u)
 
@@ -16,6 +17,7 @@ unsigned int gemdos_cconws(unsigned int args_addr) {
 
     unsigned char *buffer = malloc(len);
     if (!buffer) {
+        log_write(LOG_ERROR, "Cconws -> host malloc(%u) failed", len);
         return 0;
     }
     for (unsigned int i = 0; i < len; i++) {
@@ -23,6 +25,7 @@ unsigned int gemdos_cconws(unsigned int args_addr) {
     }
 
     fflush(stdout); // Keeps the print output in order
+    log_write(LOG_API, "Cconws(%u bytes) -> routed to Fwrite(handle=1)", len);
     gemdos_file_write(1, buffer, len);
 
     free(buffer);
